@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Advanced Image Compressor</title>
+  <style>
+    /* --- General Styling & Dark Theme --- */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+
+    :root {
+      --color-bg: #0a0a0a;
+      --color-bg-surface: #1a1a1a;
+      --color-border: #2a2a2a;
+      --color-text-primary: #f0f0f0;
+      --color-text-secondary: #a0a0a0;
+      --color-accent: #00aaff;
+      --color-accent-glow: rgba(0, 170, 255, 0.2);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--color-bg);
+      color: var(--color-text-primary);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* --- Main App Layout --- */
+    .app-container { display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 2rem 1rem; }
+    .content-wrapper { width: 100%; max-width: 90rem; margin: 0 auto; }
+
+    header { text-align: center; margin-bottom: 2.5rem; }
+    h1 {
+      font-size: 2.5rem; font-weight: 700; letter-spacing: -1px;
+      background: linear-gradient(90deg, var(--color-accent), #00e5ff);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    header p { color: var(--color-text-secondary); margin-top: 0.5rem; max-width: 600px; margin-left: auto; margin-right: auto; }
+
+    main {
+      background-color: var(--color-bg-surface); border-radius: 1rem; border: 1px solid var(--color-border);
+      padding: 2rem; box-shadow: 0 0 50px var(--color-accent-glow);
+    }
+
+    /* --- Upload Area --- */
+    .upload-area {
+      border: 2px dashed var(--color-border); border-radius: 0.75rem; padding: 3rem; text-align: center;
+      cursor: pointer; transition: background-color 0.2s, border-color 0.2s;
+    }
+    .upload-area.drag-over { border-color: var(--color-accent); background-color: rgba(0, 170, 255, 0.05); }
+    .upload-area:not(.drag-over):hover { border-color: #444; }
+    .upload-area h2 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .upload-area p { color: var(--color-text-secondary); margin-bottom: 1.5rem; }
+    .upload-button {
+      background-color: var(--color-accent); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem;
+      font-weight: 500; cursor: pointer; transition: transform 0.2s;
+    }
+    .upload-button:hover { transform: scale(1.05); }
+
+    /* --- Results and Comparison View --- */
+    .results-view { display: none; }
+    .image-comparison { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; }
+    .image-card { background-color: var(--color-bg); border: 1px solid var(--color-border); border-radius: 0.75rem; overflow: hidden; text-align: center; display: flex; flex-direction: column; }
+    .image-card h3 { font-size: 1rem; padding: 0.75rem; background-color: #222; border-bottom: 1px solid var(--color-border); }
+    .image-container { aspect-ratio: 1/1; padding: 1rem; display: flex; align-items: center; justify-content: center; flex-grow: 1; position: relative; }
+    .image-container canvas, .image-container img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 0.25rem; }
+    .image-card .stats { padding: 0.75rem; font-size: 0.875rem; color: var(--color-text-secondary); border-top: 1px solid var(--color-border); }
+    .download-button {
+      position: absolute; top: 1.5rem; right: 1.5rem; background-color: rgba(0,0,0,0.6); border: 1px solid var(--color-border); color: white;
+      width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.2s;
+    }
+    .image-container:hover .download-button { opacity: 1; }
+    .download-button:hover { background-color: rgba(0, 0, 0, 0.8); }
+
+    /* --- Performance Report & Controls --- */
+    .controls-and-report { margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--color-border); display: flex; flex-wrap: wrap; gap: 2rem; justify-content: space-between; align-items: center; }
+    .slider-container { flex-grow: 1; min-width: 250px; }
+    .slider-container label { display: block; margin-bottom: 0.75rem; font-size: 0.875rem; color: var(--color-text-secondary); }
+    .slider-container input[type="range"] { width: 100%; cursor: pointer; }
+    .performance-report { display: flex; gap: 2rem; flex-wrap: wrap; }
+    .metric { text-align: center; }
+    .metric-value { font-size: 1.5rem; font-weight: 700; color: var(--color-accent); }
+    .metric-label { font-size: 0.875rem; color: var(--color-text-secondary); }
+    .change-image-button { background-color: #333; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 500; cursor: pointer; transition: background-color 0.2s; }
+    .change-image-button:hover { background-color: #444; }
+
+    /* --- Status/Loading Indicator --- */
+    .status-indicator { display: none; margin-top: 2rem; text-align: center; font-weight: 500; font-size: 1.1rem; }
+    .spinner {
+      display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(0,170,255,0.3); border-radius: 50%; border-top-color: var(--color-accent);
+      animation: spin 1s ease-in-out infinite; margin-right: 0.75rem; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* --- Utility Classes --- */
+    #file-input { display: none; }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div class="content-wrapper">
+      <header>
+        <h1>Advanced Image Compressor</h1>
+        <p>Compress your image using high-quality resampling algorithms, then reconstruct it to its original size—all processed entirely within your browser.</p>
+      </header>
+
+      <main>
+        <!-- UPLOAD VIEW -->
+        <div id="upload-view">
+          <div id="upload-area" class="upload-area">
+            <h2>Upload an Image</h2>
+            <p>Drag & Drop your file here or click to select</p>
+            <button class="upload-button" id="upload-button">Select Image</button>
+          </div>
+          <input type="file" id="file-input" accept="image/*" />
+        </div>
+
+        <!-- RESULTS VIEW -->
+        <div id="results-view" class="results-view">
+          <div class="image-comparison">
+            <!-- Original Image -->
+            <div class="image-card">
+              <h3>Original</h3>
+              <div class="image-container">
+                <img id="original-image-display" src="" alt="Original Image" />
+              </div>
+              <div class="stats" id="original-stats">...</div>
+            </div>
+
+            <!-- Compressed Image -->
+            <div class="image-card">
+              <h3>Compressed Representation</h3>
+              <div class="image-container">
+                <canvas id="compressed-canvas"></canvas>
+                <button class="download-button" id="download-compressed" title="Download Compressed Image">⬇</button>
+              </div>
+              <div class="stats" id="compressed-stats">...</div>
+            </div>
+
+            <!-- Reconstructed Image -->
+            <div class="image-card">
+              <h3>Reconstructed</h3>
+              <div class="image-container">
+                <canvas id="reconstructed-canvas"></canvas>
+                <button class="download-button" id="download-reconstructed" title="Download Reconstructed Image">⬇</button>
+              </div>
+              <div class="stats" id="reconstructed-stats">Algorithm: Lanczos Resampling</div>
+            </div>
+          </div>
+
+          <div class="controls-and-report">
+            <div class="slider-container">
+              <label for="compression-slider">Compression Factor: <span id="slider-value">16x</span></label>
+              <input type="range" id="compression-slider" min="2" max="32" value="16" step="2" />
+            </div>
+
+            <div class="performance-report">
+              <div class="metric">
+                <div class="metric-value" id="ratio-value">...</div>
+                <div class="metric-label">Compression Ratio</div>
+              </div>
+              <div class="metric">
+                <div class="metric-value" id="time-value">...</div>
+                <div class="metric-label">Processing Time</div>
+              </div>
+            </div>
+
+            <button class="change-image-button" id="change-image-button">Process Another Image</button>
+          </div>
+        </div>
+
+        <div id="status-indicator" class="status-indicator">
+          <div class="spinner"></div>
+          <span id="status-text"></span>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // --- DOM Element References ---
+    const uploadView = document.getElementById('upload-view');
+    const resultsView = document.getElementById('results-view');
+    const uploadArea = document.getElementById('upload-area');
+    const uploadButton = document.getElementById('upload-button');
+    const fileInput = document.getElementById('file-input');
+    const changeImageButton = document.getElementById('change-image-button');
+    const downloadCompressedBtn = document.getElementById('download-compressed');
+    const downloadReconstructedBtn = document.getElementById('download-reconstructed');
+    const compressionSlider = document.getElementById('compression-slider');
+    const sliderValueDisplay = document.getElementById('slider-value');
+
+    const originalImageDisplay = document.getElementById('original-image-display');
+    const compressedCanvas = document.getElementById('compressed-canvas');
+    const reconstructedCanvas = document.getElementById('reconstructed-canvas');
+
+    const originalStats = document.getElementById('original-stats');
+    const compressedStats = document.getElementById('compressed-stats');
+    const reconstructedStats = document.getElementById('reconstructed-stats');
+    const ratioValue = document.getElementById('ratio-value');
+    const timeValue = document.getElementById('time-value');
+    const statusIndicator = document.getElementById('status-indicator');
+    const statusText = document.getElementById('status-text');
+
+    // --- Global State ---
+    let originalFile = null;
+    let isProcessing = false;
+    let currentImageBitmap = null;
+    let originalObjectUrl = null;
+
+    // --- UI Update Functions ---
+    const showStatus = (text) => {
+      statusIndicator.style.display = 'block';
+      statusText.textContent = text;
+    };
+
+    const hideStatus = () => {
+      statusIndicator.style.display = 'none';
+      statusText.textContent = '';
+    };
+
+    const formatBytes = (bytes) => {
+      if (!bytes) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+    };
+
+    const downloadCanvas = (canvas, fileName) => {
+      const link = document.createElement('a');
+      link.download = fileName;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    };
+
+    // --- Core Image Processing Logic ---
+    function lanczosUpsample(sourceCanvas, destCanvas, scale) {
+      const srcCtx = sourceCanvas.getContext('2d');
+      const destCtx = destCanvas.getContext('2d');
+      const srcData = srcCtx.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+      const destData = destCtx.createImageData(destCanvas.width, destCanvas.height);
+
+      const lanczos_a = 3;
+
+      function sinc(x) {
+        if (x === 0) return 1;
+        return Math.sin(Math.PI * x) / (Math.PI * x);
+      }
+
+      function lanczosKernel(x) {
+        if (x > -lanczos_a && x < lanczos_a) {
+          return sinc(x) * sinc(x / lanczos_a);
+        }
+        return 0;
+      }
+
+      // iterate destination pixels
+      for (let dy = 0; dy < destCanvas.height; dy++) {
+        for (let dx = 0; dx < destCanvas.width; dx++) {
+          const sx = dx / scale;
+          const sy = dy / scale;
+
+          let r = 0, g = 0, b = 0, a = 0;
+          let totalWeight = 0;
+
+          const startX = Math.floor(sx) - lanczos_a + 1;
+          const endX = Math.floor(sx) + lanczos_a;
+          const startY = Math.floor(sy) - lanczos_a + 1;
+          const endY = Math.floor(sy) + lanczos_a;
+
+          for (let y = startY; y <= endY; y++) {
+            const ky = lanczosKernel(sy - y);
+            if (ky === 0) continue;
+            for (let x = startX; x <= endX; x++) {
+              const kx = lanczosKernel(sx - x);
+              if (kx === 0) continue;
+
+              const weight = kx * ky;
+              totalWeight += weight;
+
+              const ix = Math.max(0, Math.min(x, sourceCanvas.width - 1));
+              const iy = Math.max(0, Math.min(y, sourceCanvas.height - 1));
+              const i = (iy * sourceCanvas.width + ix) * 4;
+
+              r += srcData.data[i] * weight;
+              g += srcData.data[i + 1] * weight;
+              b += srcData.data[i + 2] * weight;
+              a += srcData.data[i + 3] * weight;
+            }
+          }
+
+          const destIndex = (dy * destCanvas.width + dx) * 4;
+          // protect against division by zero
+          const inv = totalWeight !== 0 ? 1 / totalWeight : 0;
+          destData.data[destIndex] = Math.round(r * inv);
+          destData.data[destIndex + 1] = Math.round(g * inv);
+          destData.data[destIndex + 2] = Math.round(b * inv);
+          destData.data[destIndex + 3] = Math.round(a * inv);
+        }
+      }
+      destCtx.putImageData(destData, 0, 0);
+    }
+
+    async function processImage() {
+      if (isProcessing || !currentImageBitmap) return;
+      isProcessing = true;
+      const startTime = performance.now();
+
+      // UI
+      uploadView.style.display = 'none';
+      resultsView.style.display = 'none';
+      showStatus('Processing image...');
+
+      // give UI a tick to paint
+      await new Promise(resolve => setTimeout(resolve, 40));
+
+      try {
+        const compressionFactor = Math.max(1, parseInt(compressionSlider.value, 10) || 16);
+
+        // --- 1. ENCODE: Downsample to create compressed representation ---
+        const compressedWidth = Math.max(1, Math.round(currentImageBitmap.width / compressionFactor));
+        const compressedHeight = Math.max(1, Math.round(currentImageBitmap.height / compressionFactor));
+        compressedCanvas.width = compressedWidth;
+        compressedCanvas.height = compressedHeight;
+        const compressedCtx = compressedCanvas.getContext('2d');
+        // draw with default browser draw (we will save as jpeg for size measurement)
+        compressedCtx.clearRect(0, 0, compressedWidth, compressedHeight);
+        compressedCtx.drawImage(currentImageBitmap, 0, 0, compressedWidth, compressedHeight);
+
+        // get a small JPEG blob to approximate compressed storage size
+        const compressedBlob = await new Promise(resolve => {
+          // use 0.1 quality to emphasize compression
+          try {
+            compressedCanvas.toBlob(resolve, 'image/jpeg', 0.1);
+          } catch (e) {
+            // fallback to png if toBlob fails
+            compressedCanvas.toBlob(resolve, 'image/png');
+          }
+        });
+
+        // update compressed stats
+        compressedStats.textContent = `${compressedWidth}x${compressedHeight} - ${formatBytes(compressedBlob?.size || 0)}`;
+
+        // --- 2. DECODE: Upsample back to original size with high quality ---
+        reconstructedCanvas.width = currentImageBitmap.width;
+        reconstructedCanvas.height = currentImageBitmap.height;
+
+        // use our Lanczos upsampler (expensive but high quality)
+        lanczosUpsample(compressedCanvas, reconstructedCanvas, compressionFactor);
+
+        // optional: update reconstructed stats
+        reconstructedStats.textContent = `Algorithm: Lanczos Resampling — ${reconstructedCanvas.width}x${reconstructedCanvas.height}`;
+
+        // --- 3. Update UI and stats ---
+        const endTime = performance.now();
+        const processTime = ((endTime - startTime) / 1000).toFixed(2);
+        timeValue.textContent = `${processTime}s`;
+
+        const ratio = compressedBlob && originalFile ? (originalFile.size / compressedBlob.size) : 0;
+        ratioValue.textContent = ratio ? `${ratio.toFixed(1)}x` : '—';
+
+        // show results
+        resultsView.style.display = 'block';
+        hideStatus();
+
+        // enable downloads (ensure originalFile exists)
+        if (originalFile) {
+          downloadCompressedBtn.disabled = false;
+          downloadReconstructedBtn.disabled = false;
+        } else {
+          downloadCompressedBtn.disabled = true;
+          downloadReconstructedBtn.disabled = true;
+        }
+      } catch (error) {
+        console.error('Error during image processing:', error);
+        showStatus(`An error occurred: ${error?.message || error}.`);
+        // revert to upload UI after a short delay
+        setTimeout(() => {
+          hideStatus();
+          uploadView.style.display = 'block';
+        }, 1200);
+      } finally {
+        isProcessing = false;
+      }
+    }
+
+    // --- Event Listeners Setup ---
+    document.addEventListener('DOMContentLoaded', () => {
+      // helper to handle file
+      const handleFileSelect = (file) => {
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+          alert('Please select an image file.');
+          return;
+        }
+
+        // clean up previous object URL if present
+        if (originalObjectUrl) {
+          URL.revokeObjectURL(originalObjectUrl);
+          originalObjectUrl = null;
+        }
+
+        originalFile = file;
+        originalObjectUrl = URL.createObjectURL(file);
+        originalImageDisplay.src = originalObjectUrl;
+
+        createImageBitmap(file).then(bitmap => {
+          currentImageBitmap = bitmap;
+          originalStats.textContent = `${bitmap.width}x${bitmap.height} - ${formatBytes(file.size)}`;
+          // make sure result containers are reset
+          compressedStats.textContent = '...';
+          reconstructedStats.textContent = 'Algorithm: Lanczos Resampling';
+          ratioValue.textContent = '...';
+          timeValue.textContent = '...';
+          // start processing
+          processImage();
+        }).catch(err => {
+          console.error('createImageBitmap failed:', err);
+          alert('Failed to load image. Try a different file.');
+        });
+      };
+
+      // slider live label
+      sliderValueDisplay.textContent = `${compressionSlider.value}x`;
+      compressionSlider.addEventListener('input', (e) => {
+        sliderValueDisplay.textContent = `${e.target.value}x`;
+      });
+
+      compressionSlider.addEventListener('change', () => {
+        if (originalFile && !isProcessing) processImage();
+      });
+
+      uploadButton.addEventListener('click', () => fileInput.click());
+
+      changeImageButton.addEventListener('click', () => {
+        // reset state and show upload UI
+        resultsView.style.display = 'none';
+        uploadView.style.display = 'block';
+        fileInput.value = '';
+        if (originalObjectUrl) {
+          URL.revokeObjectURL(originalObjectUrl);
+          originalObjectUrl = null;
+        }
+        originalFile = null;
+        currentImageBitmap = null;
+        originalImageDisplay.src = '';
+        originalStats.textContent = '...';
+        compressedStats.textContent = '...';
+        reconstructedStats.textContent = 'Algorithm: Lanczos Resampling';
+        ratioValue.textContent = '...';
+        timeValue.textContent = '...';
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        handleFileSelect(e.target.files?.[0]);
+      });
+
+      // drag & drop
+      uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('drag-over'); });
+      uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('drag-over'));
+      uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('drag-over');
+        handleFileSelect(e.dataTransfer.files?.[0]);
+      });
+
+      // downloads
+      downloadCompressedBtn.addEventListener('click', () => {
+        if (!originalFile) return;
+        // If compressed canvas is tiny (e.g., 1x1), convert it to a scaled image so user can view
+        downloadCanvas(compressedCanvas, `compressed-${originalFile.name}`);
+      });
+
+      downloadReconstructedBtn.addEventListener('click', () => {
+        if (!originalFile) return;
+        downloadCanvas(reconstructedCanvas, `reconstructed-${originalFile.name}`);
+      });
+
+      // initial state
+      downloadCompressedBtn.disabled = true;
+      downloadReconstructedBtn.disabled = true;
+    });
+  </script>
+</body>
+</html>
